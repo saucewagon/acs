@@ -55,21 +55,54 @@ void getInput(){
 	}   
 
 	
-	int k = 0;
+	int k = 1;
+	int custIndex = 0;
 
-	while (k < numOfCustomers){
-		customers[k].id = 5;
-		customers[k].arrivalTime = 6;
-		customers[k].serviceTime = 7;
-		k++;	
-	} 
+	while (k <= numOfCustomers){
+	
+	printf("lines[k] = %s\n",lines[k]);
 
-	k = 0;
+	char* token;
+	char* tmp = lines[k];
+	token = strtok(tmp,":");
+	printf("token =%s \n",token);
+	customers[custIndex].id = atoi(token);
 
-	while (k < numOfCustomers){
+	char* token2;
 
-		printf("customer %d id = %d",k,customers[k].id);
-		k++;
+	char* tmp2 = lines[1];
+
+	token = strtok(NULL,",");
+
+	printf("token = %s\n",token);
+	customers[custIndex].arrivalTime = atoi(token);
+
+	
+	token = strtok(NULL,",");
+
+	printf("token = %s\n",token);
+	customers[custIndex].serviceTime = atoi(token);
+
+	k++;
+	custIndex++;
+
+
+	
+
 	}
 
 
+	printf("\n\n");
+
+	int l = 0;
+
+	while (l < numOfCustomers){
+		printf("customer %d id = %d\n",l,customers[l].id);
+	printf("customer %d  arrival = %d\n",l,customers[l].arrivalTime);
+	printf("customer %d service = %d\n",l,customers[l].serviceTime);
+
+	
+		l++;
+	}	
+
+}
