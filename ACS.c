@@ -29,7 +29,7 @@ void *CustomerThread(void *currentCust){
 
 	printf("hi it's %d\n",info->id);
 	printf("service time = %d\n",info->serviceTime);
-
+	sleep(1);
 	pthread_exit(NULL);
 
 }
@@ -52,20 +52,34 @@ int main(){
 
        }
 
+
+     }
+
 	int k = 0;
 
 	while (k < numOfCustomers){
-		pthread_join(&threads[k],NULL);
+		pthread_join(threads[k],NULL);
 		k++;
 
 	}
 
-     }
+
+
 	printf("the end\n\n");
+
+
+
+
+/*	int i = 0;
+
+	for (i =0; i < numOfCustomers;i++){
+		pthread_join(&threads[i],NULL);
+	}
+*/
    /* Last thing that main() should do */
 	exit(0);
 
-   return 0;
+   
 }
 
 void getInput(){
@@ -89,8 +103,8 @@ void getInput(){
     srand(time(0));
     int j = 1;
 	numOfCustomers = atoi(lines[0]);
-	printf("num of customers = %d\n",numOfCustomers);
-	while (j < i){
+/*	printf("num of customers = %d\n",numOfCustomers);
+*/	while (j < i){
 
     		printf("%s\n", lines[j]);
 		j++; 
@@ -102,13 +116,13 @@ void getInput(){
 
 	while (k <= numOfCustomers){
 	
-	printf("lines[k] = %s\n",lines[k]);
-
+/*	printf("lines[k] = %s\n",lines[k]);
+*/
 	char* token;
 	char* tmp = lines[k];
 	token = strtok(tmp,":");
-	printf("token =%s \n",token);
-	customers[custIndex].id = atoi(token);
+/*	printf("token =%s \n",token);
+*/	customers[custIndex].id = atoi(token);
 
 	char* token2;
 
@@ -116,14 +130,14 @@ void getInput(){
 
 	token = strtok(NULL,",");
 
-	printf("token = %s\n",token);
-	customers[custIndex].arrivalTime = atoi(token);
+/*	printf("token = %s\n",token);
+*/	customers[custIndex].arrivalTime = atoi(token);
 
 	
 	token = strtok(NULL,",");
 
-	printf("token = %s\n",token);
-	customers[custIndex].serviceTime = atoi(token);
+/*	printf("token = %s\n",token);
+*/	customers[custIndex].serviceTime = atoi(token);
 
 	k++;
 	custIndex++;
@@ -134,16 +148,16 @@ void getInput(){
 	}
 
 
-	printf("\n\n");
-
+/*	printf("\n\n");
+*/
 	int l = 0;
 
 	while (l < numOfCustomers){
-		printf("customer %d id = %d\n",l,customers[l].id);
+/*		printf("customer %d id = %d\n",l,customers[l].id);
 	printf("customer %d  arrival = %d\n",l,customers[l].arrivalTime);
 	printf("customer %d service = %d\n",l,customers[l].serviceTime);
 
-	
+*/	
 		l++;
 	}	
 
