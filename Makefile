@@ -2,7 +2,7 @@
 all: ACS
 
 ACS: ACS.c
-	gcc ACS.c -lreadline -lhistory -o ACS
+	gcc ACS.c -pthread  -lreadline -lhistory -o ACS
 
 .PHONY clean:
 clean:

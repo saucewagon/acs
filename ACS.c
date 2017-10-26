@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
+
+#define NUM_THREADS 20
 
 enum { MAXLINES = 30 };
 
@@ -19,10 +22,49 @@ struct Customer{
 
 struct Customer customers[30];
 
+
+void *CustomerThread(void *currentCust){
+
+	struct Customer *info = (struct Customer*)currentCust;
+
+	printf("hi it's %d\n",info->id);
+	printf("service time = %d\n",info->serviceTime);
+
+	pthread_exit(NULL);
+
+}
+
+
 int main(){
 
 	getInput();
-	
+	pthread_t threads[numOfCustomers];	
+   int rc;
+   long t;
+   for(t=0;t<numOfCustomers;t++){
+
+     printf("In main: creating thread %ld\n", t);
+     rc = pthread_create(&threads[t], NULL, CustomerThread, (void *)&customers[t]);
+
+     if (rc){
+       printf("ERROR; return code from pthread_create() is %d\n", rc);
+       exit(-1);
+
+       }
+
+	int k = 0;
+
+	while (k < numOfCustomers){
+		pthread_join(&threads[k],NULL);
+		k++;
+
+	}
+
+     }
+	printf("the end\n\n");
+   /* Last thing that main() should do */
+	exit(0);
+
    return 0;
 }
 
