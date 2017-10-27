@@ -7,11 +7,20 @@
 
 #define NUM_THREADS 20
 
+#define NUM_CLERKS 2
+#define NUM_QUEUES 4
+
+int queueLength[NUM_QUEUES];
+
+
 enum { MAXLINES = 30 };
 
 int numOfCustomers;
 
 void getInput();
+void initializeQueues();
+int chooseMinLengthQueue();
+
 
 struct Customer{
 		
@@ -21,6 +30,8 @@ struct Customer{
 };
 
 struct Customer customers[30];
+
+pthread_mutex_t lock;
 
 
 void *ClerkThread(void * clerkNum){
@@ -38,13 +49,17 @@ void *ClerkThread(void * clerkNum){
 
 void *CustomerThread(void *currentCust){
 
+	pthread_mutex_lock(&lock);
+
 	struct Customer *info = (struct Customer*)currentCust;
 
 	usleep(info->arrivalTime*100000);
 
 	printf("A customer arrives: customer ID: %d\n",info->id);
 
-	printf("A  customer enters a queue: the queue ID: %d, length of queue: %d\n",5,5);
+	int minQueue = chooseMinLengthQueue();
+	queueLength[minQueue]++;
+	printf("A  customer enters a queue: the queue ID: %d, length of queue: %d\n",minQueue,5);
 	
 	printf("A clerk starts serving a customer: customer Id and clerk id\n");
 
@@ -52,12 +67,19 @@ void *CustomerThread(void *currentCust){
 
 	printf("A clerk finishes serving  customer %d\n",info->id);
 
+	pthread_mutex_unlock(&lock);
+
 	pthread_exit(NULL);
 
 }
 
 
 int main(){
+
+
+	pthread_mutex_init(&lock,NULL);
+
+	initializeQueues();
 
 	getInput();
 	pthread_t threads[numOfCustomers];	
@@ -85,9 +107,41 @@ int main(){
 
 	}
 
+	pthread_mutex_destroy(&lock);
+
 	exit(0);
 
    
+}
+
+void initializeQueues(){
+
+	int i;
+	while (i < NUM_QUEUES){
+	
+		queueLength[i] = 0;
+		i++;
+	}
+
+}
+
+int chooseMinLengthQueue(){
+
+	int minQueue = queueLength[0];
+	int i;
+
+	while (i < NUM_QUEUES){
+
+		if (queueLength[i] < minQueue){
+
+			minQueue = queueLength[i];
+
+		}
+	i++;
+
+	}
+	
+	return minQueue;
 }
 
 void getInput(){
