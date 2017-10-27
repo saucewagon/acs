@@ -23,13 +23,35 @@ struct Customer{
 struct Customer customers[30];
 
 
+void *ClerkThread(void * clerkNum){
+
+	while(1){
+
+
+	}
+
+	pthread_exit(NULL);
+
+	return NULL;
+
+}
+
 void *CustomerThread(void *currentCust){
 
 	struct Customer *info = (struct Customer*)currentCust;
 
-	printf("hi it's %d\n",info->id);
-	printf("service time = %d\n",info->serviceTime);
-	sleep(1);
+	usleep(info->arrivalTime*100000);
+
+	printf("A customer arrives: customer ID: %d\n",info->id);
+
+	printf("A  customer enters a queue: the queue ID: %d, length of queue: %d\n",5,5);
+	
+	printf("A clerk starts serving a customer: customer Id and clerk id\n");
+
+	usleep(info->serviceTime*100000);
+
+	printf("A clerk finishes serving  customer %d\n",info->id);
+
 	pthread_exit(NULL);
 
 }
@@ -63,20 +85,6 @@ int main(){
 
 	}
 
-
-
-	printf("the end\n\n");
-
-
-
-
-/*	int i = 0;
-
-	for (i =0; i < numOfCustomers;i++){
-		pthread_join(&threads[i],NULL);
-	}
-*/
-   /* Last thing that main() should do */
 	exit(0);
 
    
@@ -99,17 +107,12 @@ void getInput(){
         i = i + 1;
     }
     fclose(fp);
-    printf("%d\n", i);
-    srand(time(0));
+/*    printf("%d\n", i);
+  */  srand(time(0));
     int j = 1;
 	numOfCustomers = atoi(lines[0]);
 /*	printf("num of customers = %d\n",numOfCustomers);
-*/	while (j < i){
-
-    		printf("%s\n", lines[j]);
-		j++; 
-	}   
-
+*/
 	
 	int k = 1;
 	int custIndex = 0;
@@ -146,19 +149,5 @@ void getInput(){
 	
 
 	}
-
-
-/*	printf("\n\n");
-*/
-	int l = 0;
-
-	while (l < numOfCustomers){
-/*		printf("customer %d id = %d\n",l,customers[l].id);
-	printf("customer %d  arrival = %d\n",l,customers[l].arrivalTime);
-	printf("customer %d service = %d\n",l,customers[l].serviceTime);
-
-*/	
-		l++;
-	}	
-
+	
 }
