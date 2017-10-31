@@ -9,9 +9,9 @@
 
 #define NUM_CLERKS 2
 #define NUM_QUEUES 4
+#define TIME_MULTIPLIER 100000
 
 int queueLength[NUM_QUEUES];
-
 
 enum { MAXLINES = 30 };
 
@@ -21,6 +21,7 @@ void getInput();
 void initializeQueues();
 int chooseMinLengthQueue();
 
+pthread_cond_t convar;
 
 struct Customer{
 		
@@ -33,10 +34,24 @@ struct Customer customers[30];
 
 pthread_mutex_t lock;
 
+pthread_mutex_t queue0lock;
+pthread_mutex_t queue1lock;
+pthread_mutex_t queue2lock;
+pthread_mutex_t queue3lock;
+
+int custWaiting = 0;
 
 void *ClerkThread(void * clerkNum){
 
 	while(1){
+
+		if (custWaiting){
+		
+			pthread_mutex_lock(&lock);
+			pthread_cond_signal(&convar);
+			pthread_mutex_unlock(&lock);
+				
+		}
 
 
 	}
@@ -49,26 +64,38 @@ void *ClerkThread(void * clerkNum){
 
 void *CustomerThread(void *currentCust){
 
-	pthread_mutex_lock(&lock);
+	
 
 	struct Customer *info = (struct Customer*)currentCust;
 
-	usleep(info->arrivalTime*100000);
+	usleep(info->arrivalTime*TIME_MULTIPLIER);
 
 	printf("A customer arrives: customer ID: %d\n",info->id);
-
+	custWaiting = 1;
 	int minQueue = chooseMinLengthQueue();
-	queueLength[minQueue]++;
-	printf("A  customer enters a queue: the queue ID: %d, length of queue: %d\n",minQueue,5);
 	
+	pthread_mutex_lock(&lock);
+
+	queueLength[minQueue]++;
+	printf("A  customer enters a queue: the queue ID: %d, length of queue: %d\n",minQueue,queueLength[minQueue]);
+	
+	while (!convar){
+		pthread_cond_wait(&convar,&lock);		
+	
+	}
+	
+pthread_mutex_unlock(&lock);
+
 	printf("A clerk starts serving a customer: customer Id and clerk id\n");
 
-	usleep(info->serviceTime*100000);
+	usleep(info->serviceTime*TIME_MULTIPLIER);
 
 	printf("A clerk finishes serving  customer %d\n",info->id);
 
-	pthread_mutex_unlock(&lock);
-
+	queueLength[minQueue]--;
+	custWaiting = 0;
+	
+	
 	pthread_exit(NULL);
 
 }
@@ -79,35 +106,53 @@ int main(){
 
 	pthread_mutex_init(&lock,NULL);
 
+	pthread_mutex_init(&queue0lock,NULL);
+	pthread_mutex_init(&queue1lock,NULL);
+	pthread_mutex_init(&queue2lock,NULL);
+	pthread_mutex_init(&queue3lock,NULL);
+	pthread_cond_init(&convar,NULL);
 	initializeQueues();
-
+	printf("%d\n",numOfCustomers);
 	getInput();
-	pthread_t threads[numOfCustomers];	
-   int rc;
-   long t;
-   for(t=0;t<numOfCustomers;t++){
 
-     printf("In main: creating thread %ld\n", t);
-     rc = pthread_create(&threads[t], NULL, CustomerThread, (void *)&customers[t]);
+	pthread_t clerks[NUM_CLERKS];
 
-     if (rc){
-       printf("ERROR; return code from pthread_create() is %d\n", rc);
-       exit(-1);
+	int i;
 
-       }
+	while (i < NUM_CLERKS){
+		pthread_create(&clerks[i],NULL,ClerkThread,&i);
+	}
 
 
-     }
+	printf("%d\n",numOfCustomers);
+	pthread_t threads[numOfCustomers];
+
+
+	int rc;
+  	long t;
+
+	for(t=0;t<numOfCustomers;t++){
+		printf("In main: creating thread %ld\n", t);
+		rc = pthread_create(&threads[t], NULL, CustomerThread, (void *)&customers[t]);
+			if (rc){
+				printf("ERROR; return code from pthread_create() is %d\n", rc);
+				exit(-1);
+				}
+	}
 
 	int k = 0;
 
 	while (k < numOfCustomers){
 		pthread_join(threads[k],NULL);
 		k++;
-
 	}
 
 	pthread_mutex_destroy(&lock);
+
+	pthread_mutex_destroy(&queue0lock);
+	pthread_mutex_destroy(&queue1lock);
+	pthread_mutex_destroy(&queue2lock);
+	pthread_mutex_destroy(&queue3lock);
 
 	exit(0);
 
@@ -116,9 +161,8 @@ int main(){
 
 void initializeQueues(){
 
-	int i;
+	int i = 0;
 	while (i < NUM_QUEUES){
-	
 		queueLength[i] = 0;
 		i++;
 	}
@@ -127,20 +171,17 @@ void initializeQueues(){
 
 int chooseMinLengthQueue(){
 
-	int minQueue = queueLength[0];
-	int i;
+	int minQueue = 0;
+	int i = 0;
 
-	while (i < NUM_QUEUES){
-
-		if (queueLength[i] < minQueue){
-
-			minQueue = queueLength[i];
-
+	while (i < NUM_QUEUES){	
+		if (queueLength[i] < queueLength[minQueue]){
+		minQueue = i;
+		break;
 		}
 	i++;
-
 	}
-	
+	/* TODO: Handle ties randomly*/
 	return minQueue;
 }
 
@@ -150,58 +191,46 @@ void getInput(){
     char lines[MAXLINES][BUFSIZ];
     FILE *fp = fopen("customers.txt", "r");
 
-    if (fp == 0)
-    {
+    if (fp == 0){
         fprintf(stderr, "failed to open input.txt\n");
         exit(1);
     }
-    while (i < MAXLINES && fgets(lines[i], sizeof(lines[0]), fp))
-    {
+    while (i < MAXLINES && fgets(lines[i], sizeof(lines[0]), fp)){
         lines[i][strlen(lines[i])-1] = '\0';
         i = i + 1;
     }
+
     fclose(fp);
-/*    printf("%d\n", i);
-  */  srand(time(0));
+  srand(time(0));
     int j = 1;
 	numOfCustomers = atoi(lines[0]);
-/*	printf("num of customers = %d\n",numOfCustomers);
-*/
+
 	
 	int k = 1;
 	int custIndex = 0;
 
 	while (k <= numOfCustomers){
 	
-/*	printf("lines[k] = %s\n",lines[k]);
-*/
-	char* token;
-	char* tmp = lines[k];
-	token = strtok(tmp,":");
-/*	printf("token =%s \n",token);
-*/	customers[custIndex].id = atoi(token);
-
-	char* token2;
-
-	char* tmp2 = lines[1];
-
-	token = strtok(NULL,",");
-
-/*	printf("token = %s\n",token);
-*/	customers[custIndex].arrivalTime = atoi(token);
-
+		char* token;
+		char* tmp = lines[k];
+		token = strtok(tmp,":");
 	
-	token = strtok(NULL,",");
+		customers[custIndex].id = atoi(token);
 
-/*	printf("token = %s\n",token);
-*/	customers[custIndex].serviceTime = atoi(token);
+		char* token2;
 
-	k++;
-	custIndex++;
+		char* tmp2 = lines[1];
 
+		token = strtok(NULL,",");
 
-	
+		customers[custIndex].arrivalTime = atoi(token);
 
+		token = strtok(NULL,",");
+
+		customers[custIndex].serviceTime = atoi(token);
+
+		k++;
+		custIndex++;
 	}
 	
 }
