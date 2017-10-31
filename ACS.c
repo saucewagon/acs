@@ -6,22 +6,25 @@
 #include <pthread.h>
 
 #define NUM_THREADS 20
-
 #define NUM_CLERKS 2
 #define NUM_QUEUES 4
 #define TIME_MULTIPLIER 100000
+#define MAX_CUSTS 20
 
-int queueLength[NUM_QUEUES];
-
+int queueLength = 0;
 enum { MAXLINES = 30 };
-
 int numOfCustomers;
-
 void getInput();
 void initializeQueues();
 int chooseMinLengthQueue();
 
 pthread_cond_t convar;
+
+pthread_cond_t clerkConvar;
+
+pthread_mutex_t lock;
+
+pthread_mutex_t clerkLock;
 
 struct Customer{
 		
@@ -32,27 +35,58 @@ struct Customer{
 
 struct Customer customers[30];
 
-pthread_mutex_t lock;
+struct Clerk{
 
-pthread_mutex_t queue0lock;
-pthread_mutex_t queue1lock;
-pthread_mutex_t queue2lock;
-pthread_mutex_t queue3lock;
+	int id;
+	
+};
 
-int custWaiting = 0;
+struct Clerk clerk0;
+
+struct Customer* queue[MAX_CUSTS];
+
+void insertIntoQueue(struct Customer* f) {
+	queue[queueLength] = f;
+	queueLength += 1;
+}
+
+void removeFromQueue() {
+	int x = 0;
+	while (x < queueLength-1) {
+		queue[x] = queue[x+1];
+		x += 1;
+	}
+	queueLength -= 1;
+}
 
 void *ClerkThread(void * clerkNum){
 
 	while(1){
 
-		if (custWaiting){
-		
+		if (queueLength < 1){
+			sleep(1);
+			continue;
+		}	
+		else{
+	
+			struct Customer *info = (struct Customer*)queue[0];
 			pthread_mutex_lock(&lock);
 			pthread_cond_signal(&convar);
 			pthread_mutex_unlock(&lock);
-				
-		}
 
+			
+			pthread_mutex_lock(&lock);
+
+			if (queue[0]->id == info->id){
+
+				printf("queue id %d\n",queue[0]->id);
+				printf("this queue id %d\n",info->id);
+				pthread_cond_wait(&clerkConvar,&lock);
+			}
+
+			pthread_mutex_unlock(&lock);
+
+		}
 
 	}
 
@@ -61,40 +95,36 @@ void *ClerkThread(void * clerkNum){
 	return NULL;
 
 }
-
 void *CustomerThread(void *currentCust){
-
 	
-
 	struct Customer *info = (struct Customer*)currentCust;
 
 	usleep(info->arrivalTime*TIME_MULTIPLIER);
 
 	printf("A customer arrives: customer ID: %d\n",info->id);
-	custWaiting = 1;
-	int minQueue = chooseMinLengthQueue();
-	
+
 	pthread_mutex_lock(&lock);
 
-	queueLength[minQueue]++;
-	printf("A  customer enters a queue: the queue ID: %d, length of queue: %d\n",minQueue,queueLength[minQueue]);
-	
-	while (!convar){
-		pthread_cond_wait(&convar,&lock);		
-	
+	insertIntoQueue(info);
+
+	printf("A  customer %d enters a queue: the queue ID: %d, length of queue: %d\n",info->id,0,queueLength);
+
+	if (queue[0]->id != info->id){
+		pthread_cond_wait(&convar,&lock);
 	}
 	
-pthread_mutex_unlock(&lock);
+	pthread_mutex_unlock(&lock);
 
-	printf("A clerk starts serving a customer: customer Id and clerk id\n");
+	printf("A clerk starts serving a customer: customer Id %d and clerk id\n",info->id);
 
 	usleep(info->serviceTime*TIME_MULTIPLIER);
+	printf("a clerk finishes serving customer %d\n",info->id);
 
-	printf("A clerk finishes serving  customer %d\n",info->id);
-
-	queueLength[minQueue]--;
-	custWaiting = 0;
+	pthread_mutex_lock(&lock);
 	
+	pthread_cond_signal(&clerkConvar);
+	removeFromQueue();
+	pthread_mutex_unlock(&lock);
 	
 	pthread_exit(NULL);
 
@@ -103,33 +133,27 @@ pthread_mutex_unlock(&lock);
 
 int main(){
 
-
 	pthread_mutex_init(&lock,NULL);
 
-	pthread_mutex_init(&queue0lock,NULL);
-	pthread_mutex_init(&queue1lock,NULL);
-	pthread_mutex_init(&queue2lock,NULL);
-	pthread_mutex_init(&queue3lock,NULL);
+	pthread_mutex_init(&clerkLock,NULL);
+
 	pthread_cond_init(&convar,NULL);
-	initializeQueues();
-	printf("%d\n",numOfCustomers);
+
+	pthread_cond_init(&clerkConvar,NULL);
+
 	getInput();
 
-	pthread_t clerks[NUM_CLERKS];
+	clerk0.id = 0;
+	queueLength = 0;
 
-	int i;
+	pthread_t clerk;
 
-	while (i < NUM_CLERKS){
-		pthread_create(&clerks[i],NULL,ClerkThread,&i);
-	}
-
-
-	printf("%d\n",numOfCustomers);
 	pthread_t threads[numOfCustomers];
-
 
 	int rc;
   	long t;
+
+	pthread_create(&clerk,NULL,ClerkThread,(void*)&clerk0);
 
 	for(t=0;t<numOfCustomers;t++){
 		printf("In main: creating thread %ld\n", t);
@@ -148,17 +172,14 @@ int main(){
 	}
 
 	pthread_mutex_destroy(&lock);
-
-	pthread_mutex_destroy(&queue0lock);
-	pthread_mutex_destroy(&queue1lock);
-	pthread_mutex_destroy(&queue2lock);
-	pthread_mutex_destroy(&queue3lock);
+	pthread_cond_destroy(&convar);
+	pthread_cond_destroy(&clerkConvar);
 
 	exit(0);
 
    
 }
-
+/*
 void initializeQueues(){
 
 	int i = 0;
@@ -167,8 +188,8 @@ void initializeQueues(){
 		i++;
 	}
 
-}
-
+}*/
+/*
 int chooseMinLengthQueue(){
 
 	int minQueue = 0;
@@ -180,11 +201,10 @@ int chooseMinLengthQueue(){
 		break;
 		}
 	i++;
-	}
+	}*/
 	/* TODO: Handle ties randomly*/
-	return minQueue;
-}
-
+/*	return minQueue;}
+*/
 void getInput(){
 
 	int i = 0;
