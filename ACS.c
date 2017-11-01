@@ -7,7 +7,7 @@
 
 #define NUM_THREADS 20
 #define NUM_CLERKS 2
-#define NUM_QUEUES 4
+#define NUM_QUEUES 2
 #define TIME_MULTIPLIER 100000
 #define MAX_CUSTS 20
 
@@ -22,9 +22,13 @@ pthread_cond_t convar;
 
 pthread_cond_t clerkConvar;
 
+pthread_cond_t clerk1Convar;
+
 pthread_mutex_t lock;
 
 pthread_mutex_t clerkLock;
+
+int whichClerk = 0;
 
 struct Customer{
 		
@@ -42,8 +46,10 @@ struct Clerk{
 };
 
 struct Clerk clerk0;
+struct Clerk clerk1;
 
 struct Customer* queue[MAX_CUSTS];
+struct Customer* queue1[MAX_CUSTS];
 
 void insertIntoQueue(struct Customer* f) {
 	queue[queueLength] = f;
@@ -60,6 +66,8 @@ void removeFromQueue() {
 }
 
 void *ClerkThread(void * clerkNum){
+	struct Clerk *cinfo = (struct Clerk*)clerkNum;
+
 
 	while(1){
 
@@ -68,26 +76,50 @@ void *ClerkThread(void * clerkNum){
 			continue;
 		}	
 		else{
-	
-			struct Customer *info = (struct Customer*)queue[0];
-			pthread_mutex_lock(&lock);
-			pthread_cond_signal(&convar);
-			pthread_mutex_unlock(&lock);
-
 			
-			pthread_mutex_lock(&lock);
+			struct Customer *info = (struct Customer*)queue[0];
 
-			if (queue[0]->id == info->id){
+			if (cinfo->id == 0){
 
-				printf("queue id %d\n",queue[0]->id);
-				printf("this queue id %d\n",info->id);
-				pthread_cond_wait(&clerkConvar,&lock);
+				pthread_mutex_lock(&lock);
+			
+				whichClerk = cinfo->id;
+
+				pthread_cond_signal(&convar);
+				pthread_mutex_unlock(&lock);
+
+				pthread_mutex_lock(&lock);
+	
+				if (queue[0]->id == info->id){
+
+					pthread_cond_wait(&clerkConvar,&lock);
+				}
+				
+				pthread_mutex_unlock(&lock);
+
 			}
 
-			pthread_mutex_unlock(&lock);
+			else if (cinfo->id == 1){
+				
+				pthread_mutex_lock(&lock);
+			
+				whichClerk = cinfo->id;
 
+				pthread_cond_signal(&convar);
+				pthread_mutex_unlock(&lock);
+			
+				pthread_mutex_lock(&lock);
+
+				if (queue[0]->id == info->id){
+
+					pthread_cond_wait(&clerk1Convar,&lock);
+
+				}
+			
+				pthread_mutex_unlock(&lock);
+
+			}						
 		}
-
 	}
 
 	pthread_exit(NULL);
@@ -96,8 +128,8 @@ void *ClerkThread(void * clerkNum){
 
 }
 void *CustomerThread(void *currentCust){
-	
-	struct Customer *info = (struct Customer*)currentCust;
+		struct Customer *info = (struct Customer*)currentCust;
+
 
 	usleep(info->arrivalTime*TIME_MULTIPLIER);
 
@@ -107,7 +139,7 @@ void *CustomerThread(void *currentCust){
 
 	insertIntoQueue(info);
 
-	printf("A  customer %d enters a queue: the queue ID: %d, length of queue: %d\n",info->id,0,queueLength);
+	printf("A  customer %d enters a queue: the queue ID: %d, length of queue: %d\n",info->id,whichClerk,queueLength);
 
 	if (queue[0]->id != info->id){
 		pthread_cond_wait(&convar,&lock);
@@ -115,14 +147,28 @@ void *CustomerThread(void *currentCust){
 	
 	pthread_mutex_unlock(&lock);
 
-	printf("A clerk starts serving a customer: customer Id %d and clerk id\n",info->id);
+	int clerk = whichClerk;
+
+	printf("A clerk starts serving a customer: customer Id %d and clerk id %d\n",info->id,clerk);
 
 	usleep(info->serviceTime*TIME_MULTIPLIER);
-	printf("a clerk finishes serving customer %d\n",info->id);
+	
+	printf("a clerk %d  finishes serving customer %d\n",clerk,info->id);
 
 	pthread_mutex_lock(&lock);
 	
-	pthread_cond_signal(&clerkConvar);
+	if (clerk  == 0){
+
+		pthread_cond_signal(&clerkConvar);
+
+	}	
+
+	else if (clerk == 1){
+	
+		pthread_cond_signal(&clerk1Convar);
+
+	}
+
 	removeFromQueue();
 	pthread_mutex_unlock(&lock);
 	
@@ -141,12 +187,17 @@ int main(){
 
 	pthread_cond_init(&clerkConvar,NULL);
 
+	pthread_cond_init(&clerk1Convar,NULL);
+
 	getInput();
 
 	clerk0.id = 0;
+	clerk1.id = 1;
+
 	queueLength = 0;
 
 	pthread_t clerk;
+	pthread_t clerkOther;	
 
 	pthread_t threads[numOfCustomers];
 
@@ -154,7 +205,8 @@ int main(){
   	long t;
 
 	pthread_create(&clerk,NULL,ClerkThread,(void*)&clerk0);
-
+	pthread_create(&clerkOther,NULL,ClerkThread,(void*)&clerk1);
+	
 	for(t=0;t<numOfCustomers;t++){
 		printf("In main: creating thread %ld\n", t);
 		rc = pthread_create(&threads[t], NULL, CustomerThread, (void *)&customers[t]);
@@ -208,21 +260,22 @@ int chooseMinLengthQueue(){
 void getInput(){
 
 	int i = 0;
-    char lines[MAXLINES][BUFSIZ];
-    FILE *fp = fopen("customers.txt", "r");
+	char lines[MAXLINES][BUFSIZ];
+	FILE *fp = fopen("customers.txt", "r");
 
-    if (fp == 0){
-        fprintf(stderr, "failed to open input.txt\n");
-        exit(1);
-    }
-    while (i < MAXLINES && fgets(lines[i], sizeof(lines[0]), fp)){
-        lines[i][strlen(lines[i])-1] = '\0';
-        i = i + 1;
-    }
+	if (fp == 0){
+        	fprintf(stderr, "failed to open input.txt\n");
+		 exit(1);
+	}
 
-    fclose(fp);
-  srand(time(0));
-    int j = 1;
+	while (i < MAXLINES && fgets(lines[i], sizeof(lines[0]), fp)){
+		lines[i][strlen(lines[i])-1] = '\0';
+		i = i + 1;
+	}
+
+ 	fclose(fp);
+	srand(time(0));
+	int j = 1;
 	numOfCustomers = atoi(lines[0]);
 
 	
