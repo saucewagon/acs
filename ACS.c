@@ -23,18 +23,20 @@ int queuesAllEmpty();
 pthread_cond_t clerkConvar;
 pthread_cond_t clerk1Convar;
 
+pthread_mutex_t clerkLock;
+pthread_mutex_t clerk1Lock;
+
 /* Locks and condition variables for each queue */
 pthread_mutex_t lock; /* First queue */
 pthread_cond_t convar;
 pthread_mutex_t lock1; /* Second queue */
 pthread_cond_t convar1;
 
-pthread_mutex_t clerkLock;
+pthread_mutex_t queueAccessLock;
 
 int whichClerk = 0;
 
-struct Customer{
-		
+struct Customer{	
 	int id;
 	int serviceTime;
 	int arrivalTime;
@@ -43,9 +45,7 @@ struct Customer{
 struct Customer customers[30];
 
 struct Clerk{
-
 	int id;
-	
 };
 
 struct Clerk clerk0;
@@ -55,20 +55,15 @@ struct Customer* queue[MAX_CUSTS];
 struct Customer* queue1[MAX_CUSTS];
 
 void insertIntoQueue(struct Customer* f,int whichQueue) {
-/*	printf("insert into queue called, whichqueue = %d\n",whichQueue);
-*/
+
 	if (whichQueue == 0){
 		queue[queueLength[0]] = f;
 		queueLength[0] += 1;
 	}
-
 	else if (whichQueue == 1){
-
 		queue1[queueLength[1]] = f;
 		queueLength[1] += 1;
-
 	}
-
 }
 
 void removeFromQueue(int whichQueue) {
@@ -80,55 +75,43 @@ void removeFromQueue(int whichQueue) {
 			x += 1;
 		}
 		queueLength[0] -= 1;
-/*	printf("removed from queue 0\n");
-*/	}
+	}
 	else if (whichQueue == 1){
-
 		int x = 0;
-
 		while (x < queueLength[1]-1){
 			queue1[x] = queue1[x+1];
 			x+=1;
 		}
 		queueLength[1] -= 1;
-/*	printf("removed from queue 1\n");
-*/	}
-
+	}
 }
 
 void *ClerkThread(void * clerkNum){
 	struct Clerk *cinfo = (struct Clerk*)clerkNum;
 
-
 	while(1){
 
 		if (queueLength[0] > 0 || queueLength[1] > 0){
 			int maxQueue;
+			pthread_mutex_lock(&queueAccessLock);
 			maxQueue = chooseMaxLengthQueue();
- /*			printf("IN CLERK MAXQUEUE = %d\n",maxQueue);
-*/			if (maxQueue == 0){
-		
+			pthread_mutex_unlock(&queueAccessLock);
+			if (maxQueue == 0){
+				pthread_mutex_lock(&lock);
 				struct Customer *info = (struct Customer*)queue[0];
-
+				pthread_mutex_unlock(&lock);
 				if (cinfo->id == 0){
-/*					printf("QUEUE 0 CLERK 0 \n\n");
-*/					pthread_mutex_lock(&lock);
+		
+					pthread_mutex_lock(&lock);
 			
 					whichClerk = cinfo->id;
 
-					pthread_cond_signal(&convar);
+					pthread_cond_broadcast(&convar);
 					pthread_mutex_unlock(&lock);
 
-					pthread_mutex_lock(&lock);
-				
-/*					printf("CLERK: queue 0 head = %d and info id = %d\n",queue[0]->id,info->id);
-*/			
-					if (queue[0]->id == info->id){
-/*						printf("CLERK IS CALLING COND WAIT\n");
-*/						pthread_cond_wait(&clerkConvar,&lock);
-					}
-				
-					pthread_mutex_unlock(&lock);
+					pthread_mutex_lock(&clerkLock);
+					pthread_cond_wait(&clerkConvar,&clerkLock);
+					pthread_mutex_unlock(&clerkLock);
 				}
 
 				else if (cinfo->id == 1){
@@ -137,44 +120,31 @@ void *ClerkThread(void * clerkNum){
 			
 					whichClerk = cinfo->id;
 
-					pthread_cond_signal(&convar);
+					pthread_cond_broadcast(&convar);
 					pthread_mutex_unlock(&lock);
 			
-					pthread_mutex_lock(&lock);
-
-					if (queue[0]->id == info->id){
-
-						pthread_cond_wait(&clerk1Convar,&lock);
-
-					}
-			
-					pthread_mutex_unlock(&lock);
-
+					pthread_mutex_lock(&clerk1Lock);
+					pthread_cond_wait(&clerk1Convar,&clerk1Lock);
+					pthread_mutex_unlock(&clerk1Lock);
 				}
 			}
 
 			else if (maxQueue == 1){
-		
+				pthread_mutex_lock(&lock1);
 				struct Customer *info = (struct Customer*)queue1[0];
-
+				pthread_mutex_unlock(&lock1);
 				if (cinfo->id == 0){
-
+				
 					pthread_mutex_lock(&lock1);
 			
 					whichClerk = cinfo->id;
 
-					pthread_cond_signal(&convar1);
+					pthread_cond_broadcast(&convar1);
 					pthread_mutex_unlock(&lock1);
 
-					pthread_mutex_lock(&lock1);
-	
-					if (queue1[0]->id == info->id){
-
-						pthread_cond_wait(&clerkConvar,&lock1);
-					}
-				
-					pthread_mutex_unlock(&lock1);
-
+					pthread_mutex_lock(&clerkLock);
+					pthread_cond_wait(&clerkConvar,&clerkLock);
+					pthread_mutex_unlock(&clerkLock);
 				}
 
 				else if (cinfo->id == 1){
@@ -183,23 +153,14 @@ void *ClerkThread(void * clerkNum){
 			
 					whichClerk = cinfo->id;
 
-					pthread_cond_signal(&convar1);
+					pthread_cond_broadcast(&convar1);
 					pthread_mutex_unlock(&lock1);
 			
-					pthread_mutex_lock(&lock1);
-
-					if (queue1[0]->id == info->id){
-
-						pthread_cond_wait(&clerk1Convar,&lock1);
-
-					}
-			
-					pthread_mutex_unlock(&lock1);
-
+					pthread_mutex_lock(&clerk1Lock);
+					pthread_cond_wait(&clerk1Convar,&clerk1Lock);
+					pthread_mutex_unlock(&clerk1Lock);
 				}
 			}		
-
-						
 		}
 	}
 
@@ -211,14 +172,15 @@ void *ClerkThread(void * clerkNum){
 void *CustomerThread(void *currentCust){
 	struct Customer *info = (struct Customer*)currentCust;
 
-
 	usleep(info->arrivalTime*TIME_MULTIPLIER);
 
 	printf("A customer arrives: customer ID: %d\n",info->id);
 
 	int whichQueue = 0;
+	pthread_mutex_lock(&queueAccessLock);
 	whichQueue = chooseMinLengthQueue();
-	printf("%d\n",whichQueue);
+	pthread_mutex_unlock(&queueAccessLock);
+
 	if (whichQueue == 0){
 		
 		pthread_mutex_lock(&lock);
@@ -241,31 +203,28 @@ void *CustomerThread(void *currentCust){
 		usleep(info->serviceTime*TIME_MULTIPLIER);
 	
 		printf("a clerk %d  finishes serving customer %d\n",clerk,info->id);
-
-		pthread_mutex_lock(&lock);
 	
 		if (clerk  == 0){
-
-			pthread_cond_signal(&clerkConvar);
-
+			pthread_mutex_lock(&clerkLock);
+			pthread_cond_broadcast(&clerkConvar);
+			pthread_mutex_unlock(&clerkLock);
 		}	
-
+		
 		else if (clerk == 1){
-	
-			pthread_cond_signal(&clerk1Convar);
-
+			pthread_mutex_lock(&clerk1Lock);
+			pthread_cond_broadcast(&clerk1Convar);
+			pthread_mutex_unlock(&clerk1Lock);
 		}
 
+		pthread_mutex_lock(&lock);
 		removeFromQueue(whichQueue);
 		pthread_mutex_unlock(&lock);
-
 	}
 
 	else if (whichQueue == 1){
-/*		printf("hi\n");
-*/		pthread_mutex_lock(&lock1);
-/*		printf("mutex 1 locked");
-*/		insertIntoQueue(info,whichQueue);
+
+		pthread_mutex_lock(&lock1);
+		insertIntoQueue(info,whichQueue);
 
 		printf("A  customer %d enters a queue: the queue ID: %d, length of queue: %d\n",info->id,whichQueue,queueLength[1]);
 
@@ -283,22 +242,18 @@ void *CustomerThread(void *currentCust){
 	
 		printf("a clerk %d  finishes serving customer %d\n",clerk,info->id);
 
-		pthread_mutex_lock(&lock1);
-	
 		if (clerk  == 0){
-
-			pthread_cond_signal(&clerkConvar);
-
+			pthread_mutex_lock(&clerkLock);
+			pthread_cond_broadcast(&clerkConvar);
+			pthread_mutex_unlock(&clerkLock);
 		}	
-
 		else if (clerk == 1){
-	
-			pthread_cond_signal(&clerk1Convar);
-
+			pthread_mutex_lock(&clerk1Lock);
+			pthread_cond_broadcast(&clerk1Convar);
+			pthread_mutex_unlock(&clerk1Lock);
 		}
-
+		pthread_mutex_lock(&lock1);
 		removeFromQueue(whichQueue);
-		printf("customer %d removed from queue 1\n",info->id);
 		pthread_mutex_unlock(&lock1);
 
 	}
@@ -310,17 +265,13 @@ void *CustomerThread(void *currentCust){
 int main(){
 
 	pthread_mutex_init(&lock,NULL);
-
 	pthread_mutex_init(&clerkLock,NULL);
-
+	pthread_mutex_init(&clerk1Lock,NULL);
 	pthread_mutex_init(&lock1,NULL);
-
+	pthread_mutex_init(&queueAccessLock,NULL);
 	pthread_cond_init(&convar,NULL);
-
 	pthread_cond_init(&convar1,NULL);
-
 	pthread_cond_init(&clerkConvar,NULL);
-
 	pthread_cond_init(&clerk1Convar,NULL);
 
 	getInput();
@@ -340,7 +291,7 @@ int main(){
 	pthread_create(&clerk,NULL,ClerkThread,(void*)&clerk0);
 	pthread_create(&clerkOther,NULL,ClerkThread,(void*)&clerk1);
 	
-	for(t=0;t<numOfCustomers;t++){
+	for(t=0; t < numOfCustomers; t++){
 		printf("In main: creating thread %ld\n", t);
 		rc = pthread_create(&threads[t], NULL, CustomerThread, (void *)&customers[t]);
 			if (rc){
@@ -362,7 +313,6 @@ int main(){
 
 	exit(0);
 
-   
 }
 
 int queuesAllEmpty(){
