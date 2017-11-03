@@ -9,7 +9,7 @@
 #define NUM_CLERKS 2
 #define NUM_QUEUES 4
 #define TIME_MULTIPLIER 100000
-#define MAX_CUSTS 20
+#define MAX_CUSTS 50
 
 struct timeval init_time;
 double overall_waiting_time = 0.0;
@@ -17,10 +17,12 @@ double overall_waiting_time = 0.0;
 int queueLength[NUM_QUEUES];
 enum { MAXLINES = 30 };
 int numOfCustomers;
-void getInput();
+void getInput(char* filename);
 void initializeQueues();
 int chooseMinLengthQueue();
 int queuesAllEmpty();
+int min();
+int max();
 
 /* Condition variables for each clerk */
 pthread_cond_t clerkConvar;
@@ -441,21 +443,28 @@ void *CustomerThread(void *currentCust){
 
 }
 
-int main(){
+int main(int argc, char* argv[]){
 
 	pthread_mutex_init(&lock,NULL);
 	pthread_mutex_init(&clerkLock,NULL);
 	pthread_mutex_init(&clerk1Lock,NULL);
 	pthread_mutex_init(&lock1,NULL);
 	pthread_mutex_init(&lock2,NULL);
+	pthread_mutex_init(&lock3,NULL);
 	pthread_mutex_init(&queueAccessLock,NULL);
 	pthread_cond_init(&convar,NULL);
 	pthread_cond_init(&convar1,NULL);
 	pthread_cond_init(&convar2,NULL);
+	pthread_cond_init(&convar3,NULL);
 	pthread_cond_init(&clerkConvar,NULL);
 	pthread_cond_init(&clerk1Convar,NULL);
 
-	getInput();
+	if (argc < 2){
+		printf("Must supply one command line input argument in the required format\n");
+		exit(1);	
+	}
+
+	getInput(argv[1]);
 	initializeQueues();	
 
 	clerk0.id = 0;
@@ -466,21 +475,19 @@ int main(){
 
 	pthread_t threads[numOfCustomers];
 
-	int rc;
-  	long t;
+  	int i;
 
 	pthread_create(&clerk,NULL,ClerkThread,(void*)&clerk0);
 	pthread_create(&clerkOther,NULL,ClerkThread,(void*)&clerk1);
 	
 	gettimeofday(&init_time, NULL);
 
-	for(t=0; t < numOfCustomers; t++){
-		printf("In main: creating thread %ld\n", t);
-		rc = pthread_create(&threads[t], NULL, CustomerThread, (void *)&customers[t]);
-			if (rc){
-				printf("ERROR; return code from pthread_create() is %d\n", rc);
-				exit(-1);
-				}
+	for(i = 0; i < numOfCustomers; i++){
+	
+		if (pthread_create(&threads[i], NULL, CustomerThread, (void *)&customers[i])){
+			printf("Error running pthread_create()\n");
+			exit(-1);
+			}
 	}
 
 	int k = 0;
@@ -526,6 +533,24 @@ void initializeQueues(){
 
 int chooseMinLengthQueue(){
 
+	int same = queueLength[0];
+	int i = 1;
+	int theMinimum = min();
+	
+	while (i < NUM_QUEUES){
+		
+		if (queueLength[i] != same){
+			return theMinimum;
+		}
+		i++;
+	}	
+
+	return (rand() % NUM_QUEUES);
+
+}
+
+int min(){
+
 	int minQueue = 0;
 	int i = NUM_QUEUES-1;
 
@@ -541,6 +566,26 @@ int chooseMinLengthQueue(){
 
 int chooseMaxLengthQueue(){
 
+	int same = queueLength[0];
+	int i = 1;
+	int theMax = max();
+	
+	while (i < NUM_QUEUES){
+		
+		if (queueLength[i] != same){
+			return theMax;
+		}
+		i++;
+	}	
+
+	return (rand() % NUM_QUEUES);
+
+	
+
+}
+
+int max(){
+
 	int maxQueue = 0;
 	int i = 0;
 
@@ -555,14 +600,15 @@ int chooseMaxLengthQueue(){
 
 }
 
-void getInput(){
+void getInput(char* filename){
 
 	int i = 0;
 	char lines[MAXLINES][BUFSIZ];
-	FILE *fp = fopen("customers.txt", "r");
+
+	FILE *fp = fopen(filename,"r");
 
 	if (fp == 0){
-        	fprintf(stderr, "failed to open input.txt\n");
+        	fprintf(stderr, "failed to open %s\n",filename);
 		 exit(1);
 	}
 
@@ -575,7 +621,6 @@ void getInput(){
 	srand(time(0));
 	int j = 1;
 	numOfCustomers = atoi(lines[0]);
-
 	
 	int k = 1;
 	int custIndex = 0;
@@ -587,10 +632,6 @@ void getInput(){
 		token = strtok(tmp,":");
 	
 		customers[custIndex].id = atoi(token);
-
-		char* token2;
-
-		char* tmp2 = lines[1];
 
 		token = strtok(NULL,",");
 
